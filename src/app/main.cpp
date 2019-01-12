@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (c) 2007-2017 musikcube team
+// Copyright (c) 2019 casey langen
 //
 // All rights reserved.
 //
@@ -54,9 +54,9 @@
 static const std::string APP_NAME = "xdimmer";
 static const int MAX_SIZE = 1000;
 static const int DEFAULT_WIDTH = 100;
-static const int MIN_WIDTH = 54;
+static const int MIN_WIDTH = 24;
 static const int DEFAULT_HEIGHT = 26;
-static const int MIN_HEIGHT = 12;
+static const int MIN_HEIGHT = 3;
 
 using namespace cursespp;
 
@@ -146,6 +146,7 @@ namespace cmd {
     }
 
     void update(const Monitor& monitor, float brightness) {
+        if (brightness < 0.05) { brightness = 0.05; }
         std::string command = str::fmt(
             "xrandr --output %s --brightness %f\n",
             monitor.name.c_str(),
@@ -165,7 +166,6 @@ namespace ui {
                 maxLeft = m.name.size();
             }
         }
-        maxLeft += 1; /* trailing space */
 
         size_t maxRight = 4; /* ' 100' */
 
@@ -173,18 +173,18 @@ namespace ui {
             m.name, text::AlignRight, (int) maxLeft);
 
         std::string rightText = text::Align(
-            std::to_string((int)(m.brightness * 100.0)),
+            std::to_string((int)(round(m.brightness * 100.0))),
             text::AlignRight,
             (int) maxRight);
 
-        int trackWidth = (int) width - (int) maxRight + (int) maxLeft -2;
+        int trackWidth = (int) width - ((int) maxRight + (int) maxLeft + 3);
         int thumbOffset = std::max(0, (int)(m.brightness * (float) trackWidth) - 1);
         std::string trackText = " ";
         for (int i = 0; i < trackWidth; i++) {
             trackText += (i == thumbOffset) ? "■" : "─";
         }
 
-        return " " + leftText + trackText + rightText + " ";
+        return " " + leftText + trackText + rightText;
     }
 
     class MonitorAdapter: public ScrollAdapterBase {
@@ -210,30 +210,60 @@ namespace ui {
                 return entry;
             }
 
+            void Update(size_t index, float delta) {
+                auto& m = this->monitors[index];
+                float newValue = m.brightness + delta;
+                if (newValue > 1.0) { newValue = 1.0; }
+                if (newValue < 0.0) { newValue = 0.0; }
+                cmd::update(m, newValue);
+                this->Refresh();
+            }
+
+        private:
             void Refresh() {
                 this->monitors = cmd::query();
             }
 
-        private:
             std::vector<Monitor> monitors;
     };
 
     class MainLayout: public LayoutBase {
         public:
             MainLayout() : LayoutBase() {
-                this->label = std::make_shared<TextLabel>();
-                this->label->SetText("xdimmer", text::AlignCenter);
-                this->SetFrameVisible(true);
-                this->SetFrameTitle(APP_NAME);
-                this->AddWindow(label);
+                this->adapter = std::make_shared<MonitorAdapter>();
+                this->listWindow = std::make_shared<ListWindow>(this->adapter);
+                this->AddWindow(this->listWindow);
+                this->listWindow->SetFocusOrder(0);
+                this->listWindow->SetFrameVisible(true);
+                this->listWindow->SetFrameTitle("xdimmer");
             }
 
             virtual void OnLayout() override {
-                this->label->MoveAndResize(0, this->GetContentHeight() / 2, this->GetContentWidth(), 1);
+                this->listWindow->MoveAndResize(
+                    0, 0, this->GetContentWidth(), this->GetContentHeight());
+            }
+
+            virtual bool KeyPress(const std::string& key) override {
+                if (key == "KEY_LEFT") {
+                    this->UpdateSelected(-0.05);
+                    return true;
+                }
+                else if (key == "KEY_RIGHT") {
+                    this->UpdateSelected(0.05);
+                    return true;
+                }
+                return false;
             }
 
         private:
-            std::shared_ptr<TextLabel> label;
+            void UpdateSelected(float delta) {
+                auto index = this->listWindow->GetSelectedIndex();
+                this->adapter->Update(index, delta);
+                this->listWindow->OnAdapterChanged();
+            }
+
+            std::shared_ptr<ListWindow> listWindow;
+            std::shared_ptr<MonitorAdapter> adapter;
     };
 }
 #ifdef WIN32
@@ -248,29 +278,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 int main(int argc, char* argv[]) {
 #endif
     f8n::env::Initialize(APP_NAME, 1);
+    f8n::debug::Start({ new f8n::debug::SimpleFileBackend() });
 
-    f8n::debug::Start({
-        new f8n::debug::FileBackend(f8n::env::GetDataDirectory() + "log.txt")
-    });
-
-    f8n::debug::info("main.cpp", "hello, world!");
-
-    App app(APP_NAME); /* must be before layout creation */
-
+    App app(APP_NAME);
     app.SetMinimumSize(MIN_WIDTH, MIN_HEIGHT);
-
-    app.SetKeyHandler([&](const std::string& kn) -> bool {
-        return false;
-    });
-
-    //app.Run(std::make_shared<MainLayout>());
-    auto monitors = cmd::query();
-    for (auto& m : monitors) {
-        cmd::update(m, m.brightness == 1.0 ? 0.75 : 1.0);
-    }
-    std::cout << ui::formatRow(30, monitors, 0) << "\n";
-
-
+    app.Run(std::make_shared<ui::MainLayout>());
 
     f8n::debug::Stop();
 
