@@ -35,7 +35,11 @@
 #include <cursespp/App.h>
 #include <cursespp/Screen.h>
 #include <cursespp/TextLabel.h>
+#include <cursespp/ListWindow.h>
+#include <cursespp/ScrollAdapterBase.h>
 #include <cursespp/LayoutBase.h>
+#include <cursespp/SingleLineEntry.h>
+#include <cursespp/Text.h>
 
 #include <f8n/debug/debug.h>
 #include <f8n/environment/Environment.h>
@@ -56,6 +60,11 @@ static const int MIN_HEIGHT = 12;
 
 using namespace cursespp;
 
+struct Monitor {
+    const std::string name;
+    const float brightness;
+};
+
 namespace str {
     std::string trim(const std::string &s) {
         /* so lazy https://stackoverflow.com/a/17976541 */
@@ -68,16 +77,13 @@ namespace str {
         using ContainerT = std::vector<std::string>;
         ContainerT tokens;
         std::string::size_type pos, lastPos = 0, length = str.length();
-
         using value_type = typename ContainerT::value_type;
         using size_type = typename ContainerT::size_type;
-
         while (lastPos < length + 1) {
             pos = str.find_first_of(delimiters, lastPos);
             if (pos == std::string::npos) {
                 pos = length;
             }
-
             if (pos != lastPos) {
                 std::string token = trim(value_type(
                     str.data() + lastPos, (size_type) pos - lastPos));
@@ -86,10 +92,8 @@ namespace str {
                     tokens.push_back(token);
                 }
             }
-
             lastPos = pos + 1;
         }
-
         return tokens;
     }
 
@@ -102,13 +106,7 @@ namespace str {
     }
 }
 
-struct Monitor {
-    const std::string name;
-    const float brightness;
-};
-
 namespace cmd {
-
     std::vector<std::string> queryNames() {
         std::vector<std::string> names;
         redi::ipstream in("xrandr -q | grep \" connected \"");
@@ -157,24 +155,87 @@ namespace cmd {
     }
 }
 
-class MainLayout: public LayoutBase {
-    public:
-        MainLayout() : LayoutBase() {
-            this->label = std::make_shared<TextLabel>();
-            this->label->SetText("xdimmer", text::AlignCenter);
-            this->SetFrameVisible(true);
-            this->SetFrameTitle(APP_NAME);
-            this->AddWindow(label);
+namespace ui {
+    static std::string formatRow(size_t width, const std::vector<Monitor>& monitors, size_t index) {
+        auto& m = monitors[index];
+
+        size_t maxLeft = 0;
+        for (auto& m: monitors) {
+            if (m.name.size() > maxLeft) {
+                maxLeft = m.name.size();
+            }
+        }
+        maxLeft += 1; /* trailing space */
+
+        size_t maxRight = 4; /* ' 100' */
+
+        std::string leftText = text::Align(
+            m.name, text::AlignRight, (int) maxLeft);
+
+        std::string rightText = text::Align(
+            std::to_string((int)(m.brightness * 100.0)),
+            text::AlignRight,
+            (int) maxRight);
+
+        int trackWidth = (int) width - (int) maxRight + (int) maxLeft -2;
+        int thumbOffset = std::max(0, (int)(m.brightness * (float) trackWidth) - 1);
+        std::string trackText = " ";
+        for (int i = 0; i < trackWidth; i++) {
+            trackText += (i == thumbOffset) ? "■" : "─";
         }
 
-        virtual void OnLayout() override {
-            this->label->MoveAndResize(0, this->GetContentHeight() / 2, this->GetContentWidth(), 1);
-        }
+        return " " + leftText + trackText + rightText + " ";
+    }
 
-    private:
-        std::shared_ptr<TextLabel> label;
-};
+    class MonitorAdapter: public ScrollAdapterBase {
+        public:
+            MonitorAdapter() {
+                this->Refresh();
+            }
 
+            virtual ~MonitorAdapter() {
+            }
+
+            virtual size_t GetEntryCount() override {
+                return this->monitors.size();
+            }
+
+            virtual EntryPtr GetEntry(cursespp::ScrollableWindow* window, size_t index) override {
+                std::string formatted = formatRow(window->GetContentWidth(), this->monitors, index);
+                auto entry = std::make_shared<SingleLineEntry>(formatted);
+                entry->SetAttrs(Color::Default);
+                if (index == window->GetScrollPosition().logicalIndex) {
+                    entry->SetAttrs(Color::ListItemHighlighted);
+                }
+                return entry;
+            }
+
+            void Refresh() {
+                this->monitors = cmd::query();
+            }
+
+        private:
+            std::vector<Monitor> monitors;
+    };
+
+    class MainLayout: public LayoutBase {
+        public:
+            MainLayout() : LayoutBase() {
+                this->label = std::make_shared<TextLabel>();
+                this->label->SetText("xdimmer", text::AlignCenter);
+                this->SetFrameVisible(true);
+                this->SetFrameTitle(APP_NAME);
+                this->AddWindow(label);
+            }
+
+            virtual void OnLayout() override {
+                this->label->MoveAndResize(0, this->GetContentHeight() / 2, this->GetContentWidth(), 1);
+            }
+
+        private:
+            std::shared_ptr<TextLabel> label;
+    };
+}
 #ifdef WIN32
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLine, int nCmdShow) {
     PDC_set_resize_limits(MIN_HEIGHT, MAX_SIZE, MIN_WIDTH, MAX_SIZE);
@@ -207,6 +268,9 @@ int main(int argc, char* argv[]) {
     for (auto& m : monitors) {
         cmd::update(m, m.brightness == 1.0 ? 0.75 : 1.0);
     }
+    std::cout << ui::formatRow(30, monitors, 0) << "\n";
+
+
 
     f8n::debug::Stop();
 
