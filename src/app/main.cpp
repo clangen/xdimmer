@@ -167,13 +167,13 @@ namespace ui {
             }
         }
 
-        size_t maxRight = 4; /* ' 100' */
+        size_t maxRight = 5; /* ' 100%' */
 
         std::string leftText = text::Align(
             m.name, text::AlignRight, (int) maxLeft);
 
         std::string rightText = text::Align(
-            std::to_string((int)(round(m.brightness * 100.0))),
+            std::to_string((int)(round(m.brightness * 100.0))) + "%",
             text::AlignRight,
             (int) maxRight);
 
@@ -266,17 +266,8 @@ namespace ui {
             std::shared_ptr<MonitorAdapter> adapter;
     };
 }
-#ifdef WIN32
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLine, int nCmdShow) {
-    PDC_set_resize_limits(MIN_HEIGHT, MAX_SIZE, MIN_WIDTH, MAX_SIZE);
-    resize_term(DEFAULT_HEIGHT, DEFAULT_WIDTH); /* must be before app init */
 
-    if (App::Running(APP_NAME)) {
-        return 0;
-    }
-#else
 int main(int argc, char* argv[]) {
-#endif
     f8n::env::Initialize(APP_NAME, 1);
     f8n::debug::Start({ new f8n::debug::SimpleFileBackend() });
 
