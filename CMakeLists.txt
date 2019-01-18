@@ -16,11 +16,6 @@ if (${LINK_STATICALLY} MATCHES "true")
   set(Boost_USE_STATIC_LIBS ON)
 endif()
 
-set (BOOST_LIBS system filesystem)
-find_package(Boost 1.55.0 REQUIRED ${BOOST_LIBS})
-add_definitions (-DHAVE_BOOST -D_FILE_OFFSET_BITS=64 -DSIGSLOT_USE_POSIX_THREADS)
-set (BOOST_LINK_LIBS ${Boost_LIBRARIES})
-
 set (EXECUTABLE_OUTPUT_PATH ${xdimmer_SOURCE_DIR}/__output)
 
 include_directories (
@@ -54,9 +49,9 @@ add_subdirectory("${xdimmer_SOURCE_DIR}/src/cursespp/")
 add_dependencies(xdimmer f8n cursespp)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  target_link_libraries(xdimmer ${BOOST_LINK_LIBS} ncursesw panelw f8n cursespp)
+  target_link_libraries(xdimmer ncursesw panelw f8n cursespp)
 else (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  target_link_libraries(xdimmer ${BOOST_LINK_LIBS} curses panel)
+  target_link_libraries(xdimmer curses panel)
 endif (CMAKE_SYSTEM_NAME MATCHES "Linux")
 
 # install(

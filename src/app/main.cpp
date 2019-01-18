@@ -252,6 +252,14 @@ namespace ui {
                     this->UpdateSelected(0.05);
                     return true;
                 }
+                else if (key == "kLFT5") {
+                    this->UpdateSelected(-0.25);
+                    return true;
+                }
+                else if (key == "kRIT5") {
+                    this->UpdateSelected(0.25);
+                    return true;
+                }
                 return false;
             }
 
