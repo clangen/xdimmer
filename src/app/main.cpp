@@ -253,11 +253,19 @@ namespace ui {
                     return true;
                 }
                 else if (key == "kLFT5") {
-                    this->UpdateSelected(-0.25);
+                    this->UpdateSelected(-0.10);
                     return true;
                 }
                 else if (key == "kRIT5") {
-                    this->UpdateSelected(0.25);
+                    this->UpdateSelected(0.10);
+                    return true;
+                }
+                else if (key == "kLFT6") {
+                    this->UpdateAll(-0.10);
+                    return true;
+                }
+                else if (key == "kRIT6") {
+                    this->UpdateAll(0.10);
                     return true;
                 }
                 return false;
@@ -267,6 +275,13 @@ namespace ui {
             void UpdateSelected(float delta) {
                 auto index = this->listWindow->GetSelectedIndex();
                 this->adapter->Update(index, delta);
+                this->listWindow->OnAdapterChanged();
+            }
+
+            void UpdateAll(float delta) {
+                for (size_t i = 0; i < this->adapter->GetEntryCount(); i++) {
+                    this->adapter->Update(i, delta);
+                }
                 this->listWindow->OnAdapterChanged();
             }
 
