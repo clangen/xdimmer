@@ -339,6 +339,7 @@ bool handleCommandLine(int argc, char* argv[]) {
         ("list", "List all device names")
         ("get", "Get the brightness for the specified device")
         ("set", "Set the brightness for the specified device")
+        ("delta", "Apply a brightness delta to the specified device", cxxopts::value<std::string>())
         ("device", "Device name or index", cxxopts::value<std::string>())
         ("value", "Brightness value", cxxopts::value<float>())
         ("help", "Display help");
@@ -362,12 +363,28 @@ bool handleCommandLine(int argc, char* argv[]) {
         return true;
     }
     else if (result.count("set")) {
-        if (!result.count("value") || !result.count("device")) {
+        if (!result.count("device") || 
+            (!result.count("value") && !result.count("delta")))
+        {
             goto printhelp;
         }
-        float value = result["value"].as<float>();
-        std::string device = result["device"].as<std::string>();
-        cmd::update(device, value);
+        else if (result.count("value")) {
+            float value = result["value"].as<float>();
+            std::string device = result["device"].as<std::string>();
+            cmd::update(device, value);
+        }
+        else if (result.count("delta")) {
+            std::string delta = result["delta"].as<std::string>();
+            try {
+                std::string device = result["device"].as<std::string>();
+                float d = std::stof(delta);
+                cmd::update(device, cmd::query(device) + d);
+            }
+            catch (...) {
+                std::cerr << "invalid delta '" << delta << "' specified\n";
+                exit(0);
+            }
+        }
         return true;
     }
     else if (result.count("help")) {
