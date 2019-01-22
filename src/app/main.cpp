@@ -49,6 +49,7 @@
 #include <string>
 #include <cassert>
 
+#include "cxxopts.hpp"
 #include "pstream.h"
 
 static const std::string APP_NAME = "xdimmer";
@@ -95,6 +96,16 @@ namespace str {
             lastPos = pos + 1;
         }
         return tokens;
+    }
+
+    int parseIndex(const std::string& value) {
+        try {
+            return std::stoi(value);
+        }
+        catch (...) {
+            /* so slow */
+        }
+        return -1;
     }
 
     template<typename... Args>
@@ -145,14 +156,44 @@ namespace cmd {
         return monitors;
     }
 
+    float query(const std::string& device) {
+        auto all = query();
+        for (auto d : all) {
+            if (d.name == device) {
+                return d.brightness;
+            }
+        }
+        int index = str::parseIndex(device);
+        if (index >= 0 && all.size() > index) {
+            return all[index].brightness;
+        }
+        std::cerr << "could not find device=" << device << "\n";
+        exit(0);
+    }
+
     void update(const Monitor& monitor, float brightness) {
         if (brightness < 0.05) { brightness = 0.05; }
+        if (brightness > 1.0) { brightness = 1.0; }
         std::string command = str::fmt(
             "xrandr --output %s --brightness %f\n",
             monitor.name.c_str(),
             brightness);
         //std::cout << command;
         redi::opstream out(command);
+    }
+
+    void update(const std::string& device, float brightness) {
+        auto all = query();
+        for (auto d : all) {
+            if (d.name == device) {
+                update(d, brightness);
+                return;
+            }
+        }
+        int index = str::parseIndex(device);
+        if (index >= 0 && all.size() > index) {
+            update(all[index], brightness);
+        }
     }
 }
 
@@ -290,15 +331,66 @@ namespace ui {
     };
 }
 
+bool handleCommandLine(int argc, char* argv[]) {
+    cxxopts::Options options("xdimmer", "");
+
+    options
+        .add_options("all")
+        ("list", "List all device names")
+        ("get", "Get the brightness for the specified device")
+        ("set", "Set the brightness for the specified device")
+        ("device", "Device name or index", cxxopts::value<std::string>())
+        ("value", "Brightness value", cxxopts::value<float>())
+        ("help", "Display help");
+
+    auto result = options.parse(argc, argv);
+
+    if (result.count("list")) {
+        auto devices = cmd::query();
+        int i = 0;
+        for (auto d: devices) {
+            std::cout << "[" << i++ << "] " << d.name << ": " << d.brightness << "\n";
+        }
+        return true;
+    }
+    else if (result.count("get")) {
+        if (!result.count("device")) {
+            goto printhelp;
+        }
+        std::string device = result["device"].as<std::string>();
+        std::cout << cmd::query(device);
+        return true;
+    }
+    else if (result.count("set")) {
+        if (!result.count("value") || !result.count("device")) {
+            goto printhelp;
+        }
+        float value = result["value"].as<float>();
+        std::string device = result["device"].as<std::string>();
+        cmd::update(device, value);
+        return true;
+    }
+    else if (result.count("help")) {
+        goto printhelp;
+    }
+
+    return false;
+
+printhelp:
+    std::cout << options.help({"", "all"}) << std::endl;
+    return true;
+}
+
 int main(int argc, char* argv[]) {
-    f8n::env::Initialize(APP_NAME, 1);
-    f8n::debug::Start({ new f8n::debug::SimpleFileBackend() });
+    if (!handleCommandLine(argc, argv)) {
+        f8n::env::Initialize(APP_NAME, 1);
+        f8n::debug::Start({ new f8n::debug::SimpleFileBackend() });
 
-    App app(APP_NAME);
-    app.SetMinimumSize(MIN_WIDTH, MIN_HEIGHT);
-    app.Run(std::make_shared<ui::MainLayout>());
+        App app(APP_NAME);
+        app.SetMinimumSize(MIN_WIDTH, MIN_HEIGHT);
+        app.Run(std::make_shared<ui::MainLayout>());
 
-    f8n::debug::Stop();
-
+        f8n::debug::Stop();
+    }
     return 0;
 }
