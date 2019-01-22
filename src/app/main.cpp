@@ -58,6 +58,7 @@ static const int DEFAULT_WIDTH = 100;
 static const int MIN_WIDTH = 24;
 static const int DEFAULT_HEIGHT = 26;
 static const int MIN_HEIGHT = 3;
+static const int MESSAGE_UPDATE = 0xdeadbeef;
 
 using namespace cursespp;
 
@@ -260,11 +261,11 @@ namespace ui {
                 this->Refresh();
             }
 
-        private:
             void Refresh() {
                 this->monitors = cmd::query();
             }
 
+        private:
             std::vector<Monitor> monitors;
     };
 
@@ -277,6 +278,7 @@ namespace ui {
                 this->listWindow->SetFocusOrder(0);
                 this->listWindow->SetFrameVisible(true);
                 this->listWindow->SetFrameTitle("xdimmer");
+                this->Post(MESSAGE_UPDATE, 0, 0, 1000);
             }
 
             virtual void OnLayout() override {
@@ -310,6 +312,17 @@ namespace ui {
                     return true;
                 }
                 return false;
+            }
+
+            virtual void ProcessMessage(f8n::runtime::IMessage &message) override {
+                if (message.Type() == MESSAGE_UPDATE) {
+                    this->adapter->Refresh();
+                    this->listWindow->OnAdapterChanged();
+                    this->Post(MESSAGE_UPDATE, 0, 0, 1000);
+                    return;
+                }
+
+                LayoutBase::ProcessMessage(message);
             }
 
         private:
