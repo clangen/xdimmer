@@ -408,7 +408,7 @@ bool handleCommandLine(int argc, char* argv[]) {
 
 printhelp:
     std::cout << options.help({"", "all"}) << std::endl;
-    return true;
+    exit(0);
 }
 
 int main(int argc, char* argv[]) {
