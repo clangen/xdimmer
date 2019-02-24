@@ -79,8 +79,8 @@ namespace str {
         using ContainerT = std::vector<std::string>;
         ContainerT tokens;
         std::string::size_type pos, lastPos = 0, length = str.length();
-        using value_type = typename ContainerT::value_type;
-        using size_type = typename ContainerT::size_type;
+        using value_type = ContainerT::value_type;
+        using size_type = ContainerT::size_type;
         while (lastPos < length + 1) {
             pos = str.find_first_of(delimiters, lastPos);
             if (pos == std::string::npos) {
@@ -89,7 +89,6 @@ namespace str {
             if (pos != lastPos) {
                 std::string token = trim(value_type(
                     str.data() + lastPos, (size_type) pos - lastPos));
-
                 if (token.size()) {
                     tokens.push_back(token);
                 }
