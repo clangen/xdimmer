@@ -414,11 +414,11 @@ int main(int argc, char* argv[]) {
     if (!handleCommandLine(argc, argv)) {
         f8n::env::Initialize(APP_NAME, 1);
         f8n::debug::Start({ new f8n::debug::SimpleFileBackend() });
-
         App app(APP_NAME);
         app.SetMinimumSize(MIN_WIDTH, MIN_HEIGHT);
+        app.SetColorMode(Colors::RGB);
+        app.SetColorBackgroundType(Colors::Inherit);
         app.Run(std::make_shared<ui::MainLayout>());
-
         f8n::debug::Stop();
     }
     return 0;
